@@ -7,5 +7,6 @@ project
 .bloop
 output
 target
+scalastyle_2.13-1.5.1-assembly.jar
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
