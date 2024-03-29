@@ -1,0 +1,26 @@
+Considerations When Designing the Code:
+
+Modularity: The code is structured into separate functions/methods for better readability, maintainability, and reusability. Each function handles a specific task such as reading data, partitioning RDDs, calculating item counts, ranking items, and adding location information.
+
+RDD Operations: Since the requirement specifies the use of RDDs, the code primarily utilizes RDD transformations and actions to process the data. This choice allows for more control over the computation process and aligns with the assignment's constraints.
+
+Performance Optimization: I have tried to optimize the performance of the code. For example, the RDDs are partitioned using a hash partitioner to improve parallelism and reduce data shuffling during transformations.
+
+Partitioning Strategy: Due to the amount of rows in dataset A, the data has been partitioned according to the geographical_location_oid. This can enhance execution performance in various ways. Firstly, it promotes data locality by ensuring that records with the same geographical_location_oid are stored within the same partition, thereby minimizing the need for network shuffling during operations involving this column. This reduces data movement across partitions, where joins, aggregations, and groupings based on geographical_location_oid used in the code are more efficient. Additionally, tasks operating on different partitions run concurrently and it also helps with load balancing, as the results for each location can be available without the need to for data from other locations. 
+
+Error Handling: The code includes error handling such as missing input arguments or data ingestion errors.
+
+Documentation: Comments are provided throughout the code to explain the purpose of each function/method and clarify the logic behind specific operations. 
+
+Proposed Spark Configurations:
+
+Executor Memory and Cores:The executor memory and cores have been configured to 4GB and 2 cores but should be changed based on the available resources and the size of the dataset. Adjustments may be required to prevent resource contention especially if the local machine is able to provide more resources.
+
+Parallelism: park.default.parallelism and spark.sql.shuffle.partitions have both been set to 100, which should be tuned to the rough number of geographical_locations. In my sample dataset A I have provided, there are 100 unique locations and i have set the configs as such. This ensures maximum resource utilization and minimize execution time as each location can be run on their own partition
+
+Serialization: Due to the large dataset, a serializer (KryoSerializer) have been used to optimize data serialization and deserialization.
+
+Caching: Another consideration could have been to cache intermediate RDDs in memory or disk storage using cache() or persist() to avoid recomputation.
+
+Dynamic Resource Allocation: Another consideration would be to enable dynamic resource allocation (spark.dynamicAllocation.enabled) to automatically adjust the number of executors based on workload requirements, ensuring efficient resource utilization and cost optimization in a shared cluster environment.
+

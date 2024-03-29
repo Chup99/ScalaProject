@@ -9,19 +9,19 @@ import org.apache.spark.Partitioner
 
 object Constants {
   // Schema for dataset A
-  val itemNameString = "item_name"
+  val ItemNameString = "item_name"
   val SchemaA = StructType(Seq(
       StructField("geographical_location_oid", LongType, nullable = true),
       StructField("video_camera_oid", LongType, nullable = true),
       StructField("detection_oid", LongType, nullable = true),
-      StructField(itemNameString, StringType, nullable = true),
+      StructField(ItemNameString, StringType, nullable = true),
       StructField("timestamp_detected", LongType, nullable = true)
     ))
 
   val OutputSchema = StructType(Seq(
       StructField("geographical_location", StringType, nullable = true),
       StructField("item_rank", StringType, nullable = true),
-      StructField(itemNameString, StringType, nullable = true)
+      StructField(ItemNameString, StringType, nullable = true)
   ))
 }
 
@@ -30,6 +30,11 @@ object TopItemsByLocation {
     // Initialize SparkSession
     val spark = SparkSession.builder()
       .appName("TopItemsByLocation")
+      .config("spark.default.parallelism", "100")
+      .config("spark.executor.memory", "4g")
+      .config("spark.executor.cores", "2")
+      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .config("spark.sql.shuffle.partitions", "100")
       .getOrCreate()
 
     // Read input paths from arguments
@@ -45,7 +50,7 @@ object TopItemsByLocation {
    // Convert DataFrame A to RDD
     val rddA: RDD[(Long, Long, String)] = dfA.rdd.map(row => (row.getAs[Long]("geographical_location_oid"),
                                                         row.getAs[Long]("detection_oid"),
-                                                        row.getAs[String](Constants.itemNameString)))
+                                                        row.getAs[String](Constants.ItemNameString)))
     val partitionedRDDA = partionRDDByLocation(rddA, spark)
     // map each row to a key-value pair with the "detection_oid" as the key and the row as the value
     // use reduceByKey to remove duplicates based on the key
