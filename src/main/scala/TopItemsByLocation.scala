@@ -3,6 +3,8 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.{SparkSession, Row}
 import org.apache.spark.sql.types.{StructType, StructField, LongType, StringType}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.HashPartitioner
+import org.apache.spark.Partitioner
 
 object Constants {
   // Schema for dataset A
@@ -20,6 +22,7 @@ object Constants {
       StructField("item_name", StringType, nullable = true)
   ))
 }
+
 object TopItemsByLocation {
   def main(args: Array[String]): Unit = {
     // Initialize SparkSession
@@ -41,11 +44,23 @@ object TopItemsByLocation {
     val rddA: RDD[(Long, Long, String)] = dfA.rdd.map(row => (row.getAs[Long]("geographical_location_oid"),
                                                         row.getAs[Long]("detection_oid"),
                                                         row.getAs[String]("item_name")))
+    
+    // Convert RDD to PairRDD with geographical_location_oid as key
+    val pairRDDA: RDD[(Long, (Long, String))] = rddA.map { case (geographical_location_oid, detection_oid, item_name) =>
+      (geographical_location_oid, (detection_oid, item_name))
+    }
+
+    // Partition PairRDD A by geographical_location_oid
+    val partitionedPairRDDA = pairRDDA.partitionBy(new HashPartitioner(spark.sparkContext.defaultParallelism))
+    // Convert PairRDD back to original structure
+    val partitionedRDDA: RDD[(Long, Long, String)] = partitionedPairRDDA.map { case (geographical_location_oid, (detection_oid, item_name)) =>
+      (geographical_location_oid, detection_oid, item_name)
+    }
 
     // map each row to a key-value pair with the "detection_oid" as the key and the row as the value
     // use reduceByKey to remove duplicates based on the key
     // use map to extract the rows from the key-value pairs
-    val deduplicatedRDD = rddA.map(row => (row._2, row)).reduceByKey((row1, row2) => row1).map(_._2)
+    val deduplicatedRDD = partitionedRDDA.map(row => (row._2, row)).reduceByKey((row1, row2) => row1).map(_._2)
 
     val rddWithItemCount = getItemCount(deduplicatedRDD)
     val topXItemsByLocation = getItemRanks(rddWithItemCount, topX)
