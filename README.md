@@ -138,5 +138,11 @@ The geographical location with data skew is identified by analyzing the distribu
     val finalResult = resultForSkewedLocation.union(resultForNonSkewedLocations)
 
     // continue with writing output
+
 ```
+
+
+## Data Architecture Design
+
+Details can be found in design.pdf
 

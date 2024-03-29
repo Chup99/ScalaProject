@@ -29,16 +29,16 @@ class TopItemsByLocationSpec extends AnyFlatSpec with Matchers with BeforeAndAft
       (2L, 4L, "Item1"),
       (2L, 5L, "Item2"),
       (2L, 6L, "Item2"),
-      (2L, 7L, "Item3")
+      (2L, 7L, "Item2")
     ))
     val outputRDD = TopItemsByLocation.getItemCount(inputRDD)
 
-    // Write assertions to check if counts are as expected
-    // Example assertions:
+
     outputRDD.collect() should contain theSameElementsAs Seq(
-      (1L, "Item1", 5),
-      (2L, "Item2", 3),
-      // Add more expected results as needed
+      (1L, "Item1", 2),
+      (1L, "Item2", 1),
+      (2L, "Item1", 1),
+      (2L, "Item2", 3)
     )
   }
 
@@ -53,12 +53,13 @@ class TopItemsByLocationSpec extends AnyFlatSpec with Matchers with BeforeAndAft
 
     val outputRDD = TopItemsByLocation.getItemRanks(inputRDD, 3) // Assuming top 3 items
 
-    // Write assertions to check if ranks are as expected
-    // Example assertions:
+   
     outputRDD.collect() should contain theSameElementsAs Seq(
       (1L, "Item1", "1"),
       (1L, "Item2", "2"),
-      // Add more expected results as needed
+      (2L, "Item2", "1"),
+      (2L, "Item1", "2"),
+      (2L, "Item3", "3")
     )
   }
 
@@ -78,12 +79,13 @@ class TopItemsByLocationSpec extends AnyFlatSpec with Matchers with BeforeAndAft
 
     val outputRDD = TopItemsByLocation.addLocation(rankedItemsRDD, locationRDD)
 
-    // Write assertions to check if locations are correctly added
-    // Example assertions:
+
     outputRDD.collect() should contain theSameElementsAs Seq(
       ("Location1", "Item1", "1"),
+      ("Location1", "Item2", "2"),
+      ("Location2", "Item1", "1"),
       ("Location2", "Item2", "2"),
-      // Add more expected results as needed
+      ("Location2", "Item3", "3")
     )
   }
 }
