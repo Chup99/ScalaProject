@@ -54,3 +54,89 @@ C:\Spark\bin\spark-submit --class TopItemsByLocation --master local[*] target/sc
 ### g. Design Considerations
 
 Design considerations can be found in 'Part_1_design_considerations.txt'
+
+## Distributed Computing Task II 
+
+Below shows the code snippets changes if there was a data skew as required in Part 1.  
+Answers to Part 2 can be found in sorting.pdf
+### Method 1: Salting
+To address data skew in one of the geographical locations in Dataset A, salting can be used by adding a random prefix to the geographical_location_oid key to distribute the data evenly across partitions and reduce skew. The partitionRDDByLocation method can be changed to partitionRDDByLocationWithSalting as shown in the code snippet below. The original partitionRDDByLocation method can be replaced with this new implementation to handle data skew more effectively. The number of partitions (numPartitions) should be changed based on the severity of the data skew (I have only doubled it).
+
+``` scala
+import scala.util.Random
+
+def partitionRDDByLocationWithSalting(rddA:RDD[(Long, Long, String)], spark: SparkSession): RDD[(Long, Long, String)] = {
+    // Convert RDD to PairRDD with geographical_location_oid as key
+    val pairRDDA: RDD[(Long, (Long, String))] = rddA.map { case (geographical_location_oid, detection_oid, item_name) =>
+      (geographical_location_oid, (detection_oid, item_name))
+    }
+
+    // Increase number of partitions to use to mitigate skew
+    val numPartitions = spark.sparkContext.defaultParallelism * 2
+
+    // Partition PairRDD A by geographical_location_oid with salting
+    val partitionedPairRDDA = pairRDDA.partitionBy(new Partitioner {
+      override def numPartitions: Int = numPartitions
+
+      override def getPartition(key: Any): Int = {
+        val hashPartitioner = new HashPartitioner(numPartitions)
+        val saltedKey = s"${Random.nextInt(numPartitions)}_$key"
+        hashPartitioner.getPartition(saltedKey)
+      }
+    })
+
+    // Convert PairRDD back to original structure
+    val partitionedRDDA: RDD[(Long, Long, String)] = partitionedPairRDDA.map { case (geographical_location_oid, (detection_oid, item_name)) =>
+      (geographical_location_oid, detection_oid, item_name)
+    }
+
+    partitionedRDDA
+  }
+```
+
+### Method 2: Filtering and pre-aggregating
+A filter can be applied to process only the relevant data for the location with data skew separately.
+The geographical location with data skew is identified by analyzing the distribution of data across locations in Dataset A. Then, Dataset A is filtered for relevant data from the skewed location, and processed separately to compute the top X items for the skewed location, and similarly process the non-skewed locations. The results from processing the skewed location and non-skewed locations is then merged to obtain the same final result.
+
+``` scala
+
+    def identifySkewedLocation(rddA: RDD[(Long, Long, String)]): Long = {
+        //  identifies the location with the highest count (assume there is only one)
+        val skewedLocation = rddA.map(row => (row._1, 1))
+            .reduceByKey(_ + _)
+            .map(_.swap)
+            .max()._2
+        skewedLocation
+        }
+    
+    def processDatasetA(rddA: RDD[(Long, Long, String)], topX: Int): RDD[(Long, String, Int)] = {
+    // Process Dataset A to compute top X items for the given geographical location
+        val deduplicatedRDD = rddA.map(row => (row._2, row)).reduceByKey((row1, row2) => row1).map(_._2)
+        val rddWithItemCount = getItemCount(deduplicatedRDD)
+        val topXItemsByLocation = getItemRanks(rddWithItemCount, topX)
+        topXItemsByLocation
+      }
+
+    // After reading both datasets
+    // Identify the geographical location with data skew
+    val skewedLocation = identifySkewedLocation(rddA)
+
+    // Filter Dataset A to process only the relevant data for the skewed location
+    val filteredRddA = rddA.filter { case (geographical_location_oid, _, _) =>
+      geographical_location_oid == skewedLocation
+    }
+
+    // Process the filtered Dataset A separately
+    val resultForSkewedLocation = processDatasetA(filteredRddA, topX)
+
+    // Process the rest of Dataset A
+    val resultForNonSkewedLocations = processDatasetA(rddA.filter { case (geographical_location_oid _, _) =>
+      geographical_location_oid != skewedLocation
+    }, topX)
+
+    // Merge the results from both computations
+    val finalResult = resultForSkewedLocation.union(resultForNonSkewedLocations)
+
+    // continue with writing output
+```
+
